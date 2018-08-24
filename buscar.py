@@ -1,6 +1,8 @@
 import redisDatabase,utils
 import nltk
 import sys,math
+from nltk.stem.snowball import SnowballStemmer
+from string import punctuation
 
 redisConn = redisDatabase.connectRedis()
 
@@ -8,9 +10,12 @@ redisConn = redisDatabase.connectRedis()
 busca = sys.argv[1]
 
 def processaBusca(query):
+    stemmer = SnowballStemmer("english")
+    stop_words = set(nltk.corpus.stopwords.words('english')+list(punctuation))
     tokens = nltk.word_tokenize(query)
-    tokenSet = set(tokens)
-    frequencias = nltk.FreqDist(tokens)
+    stm_tokens = [stemmer.stem(word) for word in tokens if word not in stop_words]
+    tokenSet = set(stm_tokens)
+    frequencias = nltk.FreqDist(stm_tokens)
 
     qtfidf = {}
     dtfidf = {}
@@ -18,13 +23,14 @@ def processaBusca(query):
     lenDoc = {}
     for t in tokenSet:
         #busca lista de documentos que contenham os tokens
-        doclist = redisConn.smembers('tk_doc_list_' + t) 
+        doclist = redisConn.smembers('tk:doc:list:' + t) 
+        # imprimir documentos encontrados por token print(" token {} : {} ".format(t,doclist))
         listdoc = listdoc.union(set(doclist))
         #calcula tfidf da consulta
         qtfidf[t] =  utils.calculaTFIDF(frequencias[t] ,len(tokens) ,len(doclist) , t, False)
         #print("tfidf do token \"{}\" na consulta é {}".format(t,qtfidf[t]))
         tk_dtfidf = {}
-        for doc in  redisConn.zrange('tfidf_'+t,0,-1,False,True):
+        for doc in  redisConn.zrange('tfidf:'+t,0,-1,False,True):
             tk_dtfidf[doc[0].decode('UTF-8')] = (t,doc[1])
         dtfidf[t]=tk_dtfidf
 
@@ -39,18 +45,13 @@ def processaBusca(query):
         scoreDict[similaridadeDoc[0]]=similaridadeDoc[1]
         #print('similaridade do documento \"{}\" com a  consulta é : {}'.format(similaridadeDoc[0],similaridadeDoc[1]))
     
+    print("#######       Total de documentos encontrados : {}       #######".format(len(scoreDict)))
     for document in sorted(scoreDict.items(),key=lambda x:x[1],reverse=True):
+        print("----------------------------------------------------")
         print("DOCUMENTO {} [ score: {} ] ".format(document[0],document[1]))
-        print(redisConn.hmget("doc_"+document[0],'content'))
+        print("----------------------------------------------------")
+        print(redisConn.hmget("doc:num:"+document[0],'content'))
+  
 
-    
-#resultado = redisConn.zrange('tfidf_'+token,0,-1,False,True)
-#print('TOTAL DE DOCUMENTOS CONTENDO A PALAVRA {} : {}'.format(token,len(resultado)))
-#for d in resultado:
-    #docText = redisConn.hmget(format(d[0].decode('UTF-8'),'content'))
-#    docText = redisConn.hmget(format(d[0].decode('UTF-8')),'content')
-#    
-#    print("# No documento {} ocorre {} vezes ".format(d[0].decode('UTF-8'), int(d[1])))
-#    print("TEXTO: {}".format(docText))
 
 processaBusca(busca)

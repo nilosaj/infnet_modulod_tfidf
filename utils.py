@@ -4,9 +4,9 @@ import math
 redisConn = redisDatabase.connectRedis()
 
 def recuperaTotalDocs():
-    totalDocs =  redisConn.get('total_documentos')
+    totalDocs =  redisConn.get('const_total_documentos')
     if (totalDocs is None):
-        redisConn.set('total_documentos',0)
+        redisConn.set('const_total_documentos',0)
         return 0
     else:        
         return totalDocs
@@ -15,13 +15,13 @@ def  calculaTFIDF(frequencia_no_documento ,total_palavras_texto ,total_documento
     if total_documentos_palavra != 0:
         idf = math.log10(int(recuperaTotalDocs())/total_documentos_palavra)
         if flgPersist:
-            redisConn.set('idf_' + token,idf)
+            redisConn.set('idf:' + token,idf)
         return (frequencia_no_documento/total_palavras_texto) * idf
     else:
         return 0
 
 def calculaTamanhoDocumento(doc):
-    dtfidf = redisConn.hgetall("doc_tfidf_"+doc)
+    dtfidf = redisConn.hgetall("doc:tfidf:"+doc)
     #print(dtfidf.values().decode('UTF-8'))
     values =  [float(value.decode('UTF-8'))**2 for value in list(dtfidf.values())]
     #print(values)

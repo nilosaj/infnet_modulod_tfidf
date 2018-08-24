@@ -4,6 +4,8 @@ from os.path import isfile,join
 import redisDatabase,utils
 import nltk
 import math
+from nltk.stem.snowball import SnowballStemmer
+from string import punctuation
 
 redisConn = redisDatabase.connectRedis()
 
@@ -43,29 +45,39 @@ def carregaArquivo(path):
     
 
 def adicionaDocumento(doc,text):
-    redisConn.hmset('doc_'+doc,{'content':text})
-    redisConn.incr('total_documentos')
-    redisConn.sadd('lista_documentos',doc)
+    redisConn.hmset('doc:num:'+doc,{'content':text})
+    redisConn.incr('const_total_documentos')
+    redisConn.sadd('const_lista_documentos',doc)
 
 def adicionaDocumentoAoIndice(doc,text):
     #armazena o conteudo do documento no atributo content da chave do documento
-    
-    stop_words = set(nltk.corpus.stopwords.words('english'))
+    stemmer = SnowballStemmer("english")
+    stop_words = set(nltk.corpus.stopwords.words('english')+list(punctuation))
     tokens = nltk.word_tokenize(text)
-    total_palavras_texto = len(tokens)
+    stm_tokens = [stemmer.stem(word) for word in tokens if word not in stop_words]
+
+    total_palavras_texto = len(stm_tokens)
     #armazena o numero total de palavras no atributo document_total_words na chave do documento
-    redisConn.hmset("doc_"+doc,{'document_total_words':total_palavras_texto})
-    tokensSet = set(tokens)
-    frequencias = nltk.FreqDist(tokens)
+    redisConn.hmset("doc:num:"+doc,{'document_total_words':total_palavras_texto})
+    tokensSet = set(stm_tokens)
+    frequencias = nltk.FreqDist(stm_tokens)
     for token in tokensSet:
         if not token in stop_words:
-            redisConn.sadd('tk_doc_list_' + token,doc)
-            total_documentos_palavra = len(redisConn.smembers('tk_doc_list_' + token))
+            redisConn.sadd('tk:doc:list:' + token,doc)
+            total_documentos_palavra = len(redisConn.smembers('tk:doc:list:' + token))
             tfidf = utils.calculaTFIDF(frequencias[token],total_palavras_texto,total_documentos_palavra,token,True)
-            redisConn.zadd('tfidf_' + token, doc,tfidf)
-            redisConn.hmset('doc_tfidf_'+doc,{token:tfidf})
+            redisConn.zadd('tfidf:' + token, doc,tfidf)
+            redisConn.hmset('doc:tfidf:'+doc,{token:tfidf})
 
 
+
+#chaves do Redis
+#   const_lista_documentos -  set com todos os numeros (RN) dos documentos
+#   const_total_documentos - chave contendo numero total de documentos
+#   doc:num:$RN  - chave contendo atributos  'content' (texto do documento na integra) e 'document_total_words' (numero total de palavras no documento)
+#   tk:doc:list:$token - set contendo todos os tokens presentes no documento
+#   tfidf:$token - set ordenado que contem o valor de tfidf do documento no qual a palavra esta contida
+#   doc:tfidf:$doc - chave contendo atributos referentes ao token cujo valor é o tfidf do token
 
 
 
@@ -77,7 +89,7 @@ for arq in  arquivos:
     carregaArquivo(arq)
 
 print("indexando ...")
-for doc in redisConn.smembers('lista_documentos'):
-    docContent = redisConn.hmget('doc_'+doc.decode('UTF-8'),'content')    
+for doc in redisConn.smembers('const_lista_documentos'):
+    docContent = redisConn.hmget('doc:num:'+doc.decode('UTF-8'),'content')    
     adicionaDocumentoAoIndice(doc.decode('UTF-8'),docContent[0].decode('UTF-8'))
 print('Fim')
