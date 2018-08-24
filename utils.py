@@ -28,6 +28,12 @@ def calculaTamanhoDocumento(doc):
     
     return math.sqrt(sum(values))
 
+def calculaSimilaridade(doc,dictDocument , dictQuery,lenDoc , lenQuery,tipo):
+    if tipo == 'cosseno' :
+        return calculaCosSim(doc,dictDocument , dictQuery,lenDoc , lenQuery)
+    else :
+        return None    
+
 def calculaCosSim(doc,dictDocument , dictQuery,lenDoc , lenQuery):
     soma =0
     for t in dictQuery:

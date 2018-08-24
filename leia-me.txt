@@ -3,7 +3,9 @@
 python indexador.py <CAMINHO COMPLETO DO DIRETORIO QUE POSSUI OS ARQUIVOS XML>
 
 
-2) exemplo de busca :
+2) exemplo de busca : 
 
-python buscar.py 'What is the lipid composition of CF respiratory secretions'
+python buscar.py <cosseno|jaccard> <query>
+
+Ex: python buscar.py 'cosseno' 'What is the lipid composition of CF respiratory secretions'
 
