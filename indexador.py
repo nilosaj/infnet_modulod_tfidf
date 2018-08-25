@@ -62,7 +62,8 @@ def adicionaDocumentoAoIndice(doc,text):
     frequencias = nltk.FreqDist(stm_tokens) #recupera frequencias da lista de stems
     for token in tokensSet:
         if not token in stop_words:
-            redisConn.sadd('tk:doc:list:' + token,doc) #cria uma chave de token com todos os documentos que este possui
+            redisConn.sadd('tk:doc:list:' + token,doc) #cria um set de token com todos os documentos que este possui
+            redisConn.sadd('doc:tk:list:'+doc,token)#cria um set de doc com todos os tokens que este possui
             total_documentos_palavra = len(redisConn.smembers('tk:doc:list:' + token)) # verifica  o total de documentos no qual a o token esta incluido
             tfidf = utils.calculaTFIDF(frequencias[token],total_palavras_texto,total_documentos_palavra,token,True) #calcula op tfidf  atual 
             redisConn.zadd('tfidf:' + token, doc,tfidf) #armazena o tfidf do documento no  token em  um sorted set
@@ -89,6 +90,6 @@ for arq in  arquivos:
 
 print("indexando ...")
 for doc in redisConn.smembers('const_lista_documentos'):
-    docContent = redisConn.hmget('doc:num:'+doc.decode('UTF-8'),'content')    
-    adicionaDocumentoAoIndice(doc.decode('UTF-8'),docContent[0].decode('UTF-8'))
+    docContent = redisConn.hmget('doc:num:'+doc,'content')    
+    adicionaDocumentoAoIndice(doc,docContent[0])
 print('Fim')

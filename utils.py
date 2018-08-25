@@ -23,16 +23,12 @@ def  calculaTFIDF(frequencia_no_documento ,total_palavras_texto ,total_documento
 def calculaTamanhoDocumento(doc):
     dtfidf = redisConn.hgetall("doc:tfidf:"+doc)
     #print(dtfidf.values().decode('UTF-8'))
-    values =  [float(value.decode('UTF-8'))**2 for value in list(dtfidf.values())]
+    values =  [float(value)**2 for value in list(dtfidf.values())]
     #print(values)
     
     return math.sqrt(sum(values))
 
-def calculaSimilaridade(doc,dictDocument , dictQuery,lenDoc , lenQuery,tipo):
-    if tipo == 'cosseno' :
-        return calculaCosSim(doc,dictDocument , dictQuery,lenDoc , lenQuery)
-    else :
-        return None    
+ 
 
 def calculaCosSim(doc,dictDocument , dictQuery,lenDoc , lenQuery):
     soma =0
@@ -42,3 +38,16 @@ def calculaCosSim(doc,dictDocument , dictQuery,lenDoc , lenQuery):
     total = soma/(lenQuery*lenDoc[doc])
     return (doc ,total)    
         
+def calculaJaccard(queryTokens):    
+    docDict = {}
+    for doc in redisConn.smembers('const_lista_documentos'):
+        docTkens = set(redisConn.smembers('doc:tk:list:'+doc))
+        i = docTkens.intersection(queryTokens)
+        u = docTkens.union(queryTokens)
+        sim = len(i)/len(u)
+        #print("documento {} tem {} interseções e {} unioes e similaridade é {} ".format(doc,i,u,sim))
+        if (sim > 0):
+            docDict[doc] = len(i)/len(u)
+        
+        #print (' tokens {}'.format(queryTokens))
+    return (docDict)
