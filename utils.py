@@ -52,6 +52,5 @@ def calculaJaccard(queryTokens):
         #print("documento {} tem {} interseções e {} unioes e similaridade é {} ".format(doc,i,u,sim))
         if (sim > 0):
             docDict[doc] = len(i)/len(u)
-        
-        
     return (docDict)
+

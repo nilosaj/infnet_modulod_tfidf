@@ -9,7 +9,15 @@ python indexador.py <CAMINHO COMPLETO DO DIRETORIO QUE POSSUI OS ARQUIVOS XML>
 
 2) exemplo de busca : 
 
-python buscar.py <cosseno|jaccard> <query>
+API:
 
-Ex: python buscar.py 'cosseno' 'What is the lipid composition of CF respiratory secretions'
+Ex: 1) python infnet_modulod_api.py
+    2) Executar um HTTP/POST para http://localhost:5000/buscar/<jaccard|cosseno>   com Content-type "application/json" e  payload:   { "busca" : "<BUSCA AQUI>"}
+
+
+CLI:
+
+python infnet_modulod_cli.py <cosseno|jaccard> <query>
+
+Ex: python infnet_modulod_cli.py 'cosseno' 'What is the lipid composition of CF respiratory secretions'
 
