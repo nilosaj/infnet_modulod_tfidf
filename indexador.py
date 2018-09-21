@@ -45,39 +45,41 @@ def carregaArquivo(path):
     
 
 def adicionaDocumento(doc,text):
-    redisConn.hmset('doc:num:'+doc,{'content':text})  #armazena o texto na chave
-    redisConn.incr('const_total_documentos') # incrementa o total de documentos armazenados
-    redisConn.sadd('const_lista_documentos',doc) #adiciona o numero do documento na chave que possui a lista de todos os documentos
-
-def adicionaDocumentoAoIndice(doc,text):
+    redisConn.hmset('document:'+doc+':record_num',{'content':text})  #armazena o texto na chave
+    redisConn.incr('alldocs_qtde') # incrementa o total de documentos armazenados
+    redisConn.sadd('alldocs_list',doc) #adiciona o numero do documento na chave que possui a lista de todos os documentos
+#def adicionaDocumentoAoIndice(doc,text):
     #armazena o conteudo do documento no atributo content da chave do documento
     stemmer = SnowballStemmer("english")
     stop_words = set(nltk.corpus.stopwords.words('english')+list(punctuation))
     tokens = nltk.word_tokenize(text)
     stm_tokens = [stemmer.stem(word) for word in tokens if word not in stop_words] #armazena os stems
-
-    total_palavras_texto = len(stm_tokens) #verifica o numero total de stems   
-    redisConn.hmset("doc:num:"+doc,{'document_total_words':total_palavras_texto})  #armazena o numero total de palavras no atributo document_total_words na chave do documento
+    total_palavras_documento = len(stm_tokens) #verifica o numero total de stems 
+    redisConn.hmset('document:'+doc+':record_num',{'document_total_words':total_palavras_documento})  #armazena o numero total de palavras no atributo document_total_words na chave do documento
     tokensSet = set(stm_tokens) # armazena uma copia de stems excluindo duplicidades 
-    frequencias = nltk.FreqDist(stm_tokens) #recupera frequencias da lista de stems
+    frequencias = nltk.FreqDist(stm_tokens) #recupera frequencias da lista de stems    
     for token in tokensSet:
         if not token in stop_words:
-            redisConn.sadd('tk:doc:list:' + token,doc) #cria um set de token com todos os documentos que este possui
-            redisConn.sadd('doc:tk:list:'+doc,token)#cria um set de doc com todos os tokens que este possui
-            total_documentos_palavra = len(redisConn.smembers('tk:doc:list:' + token)) # verifica  o total de documentos no qual a o token esta incluido
-            tfidf = utils.calculaTFIDF(frequencias[token],total_palavras_texto,total_documentos_palavra,token,True) #calcula op tfidf  atual 
-            redisConn.zadd('tfidf:' + token, doc,tfidf) #armazena o tfidf do documento no  token em  um sorted set
-            redisConn.hmset('doc:tfidf:'+doc,{token:tfidf}) #armazena o tfidf do do token no documento  em um hash
-
-
+            redisConn.sadd('token:'+token+':document_list'  ,doc) #cria um set de token com todos os documentos que este possui
+            redisConn.sadd('document:'+doc+':token_list',token)#cria um set de doc com todos os tokens que este possui
+            redisConn.zadd('document:'+doc+':token_frequency_list',token,frequencias[token])#cria um set de doc com todos os tokens que este possui
+            redisConn.execute_command('ZADD', 'alldocs_token_frequency_list', 'INCR', frequencias[token], token)
+            #redisConn.zadd('alldocs:token:frequency:list','INCR',token,)
+            #total_documentos_palavra = len(redisConn.smembers('token:document:list:' + token)) # verifica  o total de documentos no qual a o token esta incluido
+            #tfidf = utils.calculaTFIDF(frequencias[token],total_palavras_documento,total_documentos_palavra,token,doc,True) #calcula op tfidf  atual 
+            #redisConn.zadd('token:document:tfidf:' + token, doc,tfidf) #armazena o tfidf do documento no  token em  um sorted set
+            #redisConn.hmset('document:'+doc+':token:tfidf',{token:tfidf}) #armazena o tfidf do do token no documento  em um hash
+    
+#def AdicionaTFIDF():
+    
 
 #chaves do Redis
-#   const_lista_documentos -  set com todos os numeros (RN) dos documentos
-#   const_total_documentos - chave contendo numero total de documentos
-#   doc:num:$RN  - chave contendo atributos  'content' (texto do documento na integra) e 'document_total_words' (numero total de palavras no documento)
-#   tk:doc:list:$token - set contendo todos os tokens presentes no documento
-#   tfidf:$token - set ordenado que contem o valor de tfidf do documento no qual a palavra esta contida
-#   doc:tfidf:$doc - chave contendo atributos referentes ao token cujo valor é o tfidf do token
+#   alldocs:list -  set com todos os numeros (RN) dos documentos
+#   alldocs:qtde - chave contendo numero total de documentos
+#   document:record_num:{$RN}  - chave contendo atributos  'content' (texto do documento na integra) e 'document_total_words' (numero total de palavras no documento)
+#   token:document:list:{$token} - set contendo todos os tokens presentes no documento
+#   token:{$token}:document:tfidf: - set ordenado que contem o valor de tfidf do documento no qual a palavra esta contida
+#   document:{$RN}:token:tfidf - chave contendo atributos referentes ao token cujo valor é o tfidf do token
 
 
 
@@ -88,8 +90,18 @@ arquivos = [join(diretorio, arquivo) for arquivo in listdir(diretorio) if isfile
 for arq in  arquivos:
     carregaArquivo(arq)
 
-print("indexando ...")
-for doc in redisConn.smembers('const_lista_documentos'):
-    docContent = redisConn.hmget('doc:num:'+doc,'content')    
-    adicionaDocumentoAoIndice(doc,docContent[0])
+documentos = redisConn.smembers('alldocs_list')
+token_ocorrencias = redisConn.zrange('alldocs_token_frequency_list',0,-1,False,True)
+
+print("Gerando TFIDF")
+for doc in documentos:
+    for token_freq in  redisConn.zrange('document:'+doc+':token_frequency_list',0,-1,False,True):
+        total_palavras_texto = redisConn.hmget('document:'+doc+':record_num','document_total_words')        
+        total_documentos_palavra = len(redisConn.smembers('token:'+token_freq[0]+':document_list'  ))        
+        tfidf = utils.calculaTFIDF(token_freq[1],int(total_palavras_texto[0]),total_documentos_palavra,token_freq[0],doc)
+        redisConn.zadd('token:'+token_freq[0]+':tfidf_document', doc,tfidf) #armazena o tfidf do documento no  token em  um sorted set
+        redisConn.hmset('document:'+doc+':token_tfidf',{token_freq[0]:tfidf}) #armazena o tfidf do do token no documento  em um hash
+print("Gerando Length")
+for doc in documentos:
+    redisConn.hmset('alldocs_length',{doc:utils.calculaTamanhoDocumento(doc)})
 print('Fim')

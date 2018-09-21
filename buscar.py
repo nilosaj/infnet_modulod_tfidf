@@ -3,10 +3,11 @@ import nltk
 import sys,math
 from nltk.stem.snowball import SnowballStemmer
 from string import punctuation
+import json
 
 
-
-def processaBusca(query,tipo):
+def processaBusca(query,tipo,redis_connection):
+    redisConn = redis_connection
     stemmer = SnowballStemmer("english")
     stop_words = set(nltk.corpus.stopwords.words('english')+list(punctuation))
     tokens = nltk.word_tokenize(query)
@@ -18,43 +19,45 @@ def processaBusca(query,tipo):
     listdoc = set({})
     lenDoc = {}
     scoreDict = {}
-
+    print('Query executada :{}'.format(query))
     if tipo == 'cosseno':
         for t in tokenSet:
-            #busca lista de documentos que contenham os tokens
-            doclist = redisConn.smembers('tk:doc:list:' + t) 
-            # imprimir documentos encontrados por token print(" token {} : {} ".format(t,doclist))
-            listdoc = listdoc.union(set(doclist))
-            #calcula tfidf da consulta
-            qtfidf[t] =  utils.calculaTFIDF(frequencias[t] ,len(tokens) ,len(doclist) , t, False)        
-            tk_dtfidf = {}
-            for doc in  redisConn.zrange('tfidf:'+t,0,-1,False,True):
-                tk_dtfidf[doc[0]] = (t,doc[1])
-            dtfidf[t]=tk_dtfidf
-
-        #print(qtfidf)
-        qlen =  math.sqrt(sum([value**2 for value in list(qtfidf.values())]))
+            if not t in stop_words:                
+                #busca lista de documentos que contenham os tokens
+                doclist = redisConn.smembers('token:'+ t+':document_list' ) 
+                # imprimir documentos encontrados por token print(" token {} : {} ".format(t,doclist))
+                listdoc = listdoc.union(set(doclist))
+                #calcula tfidf da consulta
+                qtfidf[t] =  utils.calculaTFIDF(frequencias[t] ,len(tokens) ,len(doclist) , t,'query')                  
+        
+        qlen =  math.sqrt(sum([value**2 for value in list(qtfidf.values()) if value != None]))
         #print('Tamanho da consulta \"{}\" : {}'.format(query,qlen))        
-        for d in listdoc:
-            lenDoc[d] = utils.calculaTamanhoDocumento(d)
-            #print('tamanho do documento  {} : {}'.format(d.decode('UTF-8'),lenDoc[d.decode('UTF-8')]))
-            similaridadeDoc = utils.calculaCosSim(d,dtfidf,qtfidf,lenDoc,qlen)
+        for d in listdoc:            
+            similaridadeDoc = utils.calculaCosSim(qtfidf,qlen,d)
             scoreDict[similaridadeDoc[0]]=similaridadeDoc[1]
-            #print('similaridade do documento \"{}\" com a  consulta é : {}'.format(similaridadeDoc[0],similaridadeDoc[1]))
+            
     elif tipo == 'jaccard':
             similaridadeDoc = utils.calculaJaccard(tokenSet) 
             scoreDict=similaridadeDoc   
     else:
         print('Opcao invalida')    
 
-
+    data = {}
+    documents = []
     print("#######       Total de documentos encontrados : {}       #######".format(len(scoreDict)))
+    data['total'] = len(scoreDict)
     for document in sorted(scoreDict.items(),key=lambda x:x[1],reverse=True):
-        print("----------------------------------------------------")
-        print("DOCUMENTO {} [ score: {} ] ".format(document[0],document[1]))
-        print("----------------------------------------------------")
-        print(redisConn.hmget("doc:num:"+document[0],'content'))
-  
+      print("----------------------------------------------------")
+      print("DOCUMENTO {} [ score: {} ] ".format(document[0],document[1]))
+      print("----------------------------------------------------")
+      print(redisConn.hmget('document:'+document[0]+':record_num','content'))
+      doc={}
+      doc['RN']= document[0]
+      doc['score'] = document[1]
+      doc['content'] = redisConn.hmget('document:'+document[0]+':record_num','content')
+      documents.append(doc)
+    data['documentos'] = documents
+    return data
 
 if (len(sys.argv)<3):
     print("Formato de busca incorreto. favor utilizar:   python buscar.py <cosseno|jaccard> <query>   ")
@@ -63,4 +66,5 @@ else:
     #recupera termo a ser procurado na base
     tipo = sys.argv[1]
     busca = sys.argv[2] 
-    processaBusca(busca,tipo)
+
+processaBusca(busca,tipo,redisConn)

@@ -1,3 +1,7 @@
+Alunos: 
+    - Nilo Sergio de Assis Junior
+    - Rodrigo barbosa 
+-------------------------------------------
 1)indexação:
 
 python indexador.py <CAMINHO COMPLETO DO DIRETORIO QUE POSSUI OS ARQUIVOS XML>
